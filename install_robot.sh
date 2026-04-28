@@ -8,7 +8,7 @@
 #
 # Tar ca 20-30 minuter på Raspberry Pi 4 (colcon-bygget är tungt).
 # =============================================================================
-set -euo pipefail
+set -eo pipefail
 
 # ── Konfiguration ────────────────────────────────────────────────────────────
 ROS_DISTRO=jazzy
