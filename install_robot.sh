@@ -12,7 +12,7 @@ set -eo pipefail
 
 # ── Konfiguration ────────────────────────────────────────────────────────────
 ROS_DISTRO=jazzy
-DOMAIN_ID=999
+DOMAIN_ID=100
 LDS_MODEL=LDS-01
 TB3_MODEL=burger
 WORKSPACE="$HOME/turtlebot3_ws"
