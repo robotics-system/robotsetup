@@ -18,7 +18,14 @@ cd /tmp
 rm -rf opencr_update.tar.bz2 opencr_update
 wget https://github.com/ROBOTIS-GIT/OpenCR-Binaries/raw/master/turtlebot3/ROS2/latest/opencr_update.tar.bz2
 tar xvf opencr_update.tar.bz2
-cd opencr_update && ./update.sh $OPENCR_PORT $OPENCR_MODEL.opencr
+cd opencr_update
+
+# RPi 4 kör aarch64 men opencr-binären är 32-bit ARM.
+# Lägg till armhf-arkitektur så kärnan kan köra den nativt.
+sudo dpkg --add-architecture armhf
+sudo apt-get update -q
+sudo apt-get install -y -q libc6:armhf
+./update.sh $OPENCR_PORT $OPENCR_MODEL.opencr
 
 echo ""
 echo "--- OpenCR flashad! Starta om roboten och kör bringup. ---"
