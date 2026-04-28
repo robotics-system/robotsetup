@@ -3,10 +3,8 @@
 # TurtleBot3 Burger – Robot SBC Setup (ROS 2 Jazzy, Ubuntu Server 24.04)
 # Baserat på: https://emanual.robotis.com/docs/en/platform/turtlebot3/sbc_setup/
 #
-# Användning (kör som pi-användaren, INTE root):
-#   curl -fsSL <raw-github-url>/install_robot.sh | bash
-#   -- eller --
-#   git clone <repo> && cd <repo>/robot_setup && bash install_robot.sh
+# Användning (kör som lärare/admin, INTE root):
+#   git clone https://github.com/robotics-system/robotsetup.git && cd robotsetup && bash install_robot.sh
 #
 # Tar ca 20-30 minuter på Raspberry Pi 4 (colcon-bygget är tungt).
 # =============================================================================
@@ -31,6 +29,16 @@ warn() { echo -e "${YELLOW}VARNING: $*${NC}"; }
 die()  { echo -e "${RED}FEL: $*${NC}" >&2; exit 1; }
 
 [ "$(id -u)" -eq 0 ] && die "Kör INTE som root. Kör som vanlig användare med sudo-rättigheter."
+
+# ── 0. Stäng av unattended-upgrades (håller annars apt-låset vid ny boot) ────
+step "0/7  Inaktiverar unattended-upgrades"
+sudo systemctl stop unattended-upgrades 2>/dev/null || true
+sudo systemctl disable unattended-upgrades 2>/dev/null || true
+sudo killall unattended-upgr 2>/dev/null || true
+# Vänta tills eventuellt pågående apt-lås släpps
+while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+    echo "  Väntar på att apt-låset ska släppas..."; sleep 2
+done
 
 # ── 1. Swap-fil (krävs för att colcon build inte ska krascha på RPi) ─────────
 step "1/7  Skapar swap-fil (2 GB)"
