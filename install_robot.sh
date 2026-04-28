@@ -53,9 +53,12 @@ else
     echo "  Swap-fil finns redan, hoppar över."
 fi
 
-# ── 2. Locale ────────────────────────────────────────────────────────────────
-step "2/7  Konfigurerar locale (en_US.UTF-8)"
+# ── 2. Systemuppgradering + Locale ───────────────────────────────────────────
+step "2/7  Uppgraderar system och konfigurerar locale (en_US.UTF-8)"
 sudo apt-get update -q
+# Krävs för att lösa versions-konflikter mellan Ubuntu 24.04 security-uppdateringar
+# och exakta versionskrav hos -dev-paket som ROS drar in.
+sudo apt-get dist-upgrade -y -q
 sudo apt-get install -y -q locales
 sudo locale-gen en_US en_US.UTF-8
 sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
