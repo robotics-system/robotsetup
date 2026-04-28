@@ -1,0 +1,153 @@
+#!/bin/bash
+# =============================================================================
+# TurtleBot3 Burger – Robot SBC Setup (ROS 2 Jazzy, Ubuntu Server 24.04)
+# Baserat på: https://emanual.robotis.com/docs/en/platform/turtlebot3/sbc_setup/
+#
+# Användning (kör som pi-användaren, INTE root):
+#   curl -fsSL <raw-github-url>/install_robot.sh | bash
+#   -- eller --
+#   git clone <repo> && cd <repo>/robot_setup && bash install_robot.sh
+#
+# Tar ca 20-30 minuter på Raspberry Pi 4 (colcon-bygget är tungt).
+# =============================================================================
+set -euo pipefail
+
+# ── Konfiguration ────────────────────────────────────────────────────────────
+ROS_DISTRO=jazzy
+DOMAIN_ID=999
+LDS_MODEL=LDS-01
+TB3_MODEL=burger
+WORKSPACE="$HOME/turtlebot3_ws"
+# ─────────────────────────────────────────────────────────────────────────────
+
+BOLD='\033[1m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+step() { echo -e "\n${BOLD}${GREEN}[$(date +%H:%M:%S)] $*${NC}"; }
+warn() { echo -e "${YELLOW}VARNING: $*${NC}"; }
+die()  { echo -e "${RED}FEL: $*${NC}" >&2; exit 1; }
+
+[ "$(id -u)" -eq 0 ] && die "Kör INTE som root. Kör som vanlig användare med sudo-rättigheter."
+
+# ── 1. Swap-fil (krävs för att colcon build inte ska krascha på RPi) ─────────
+step "1/7  Skapar swap-fil (2 GB)"
+if [ ! -f /swapfile ]; then
+    sudo fallocate -l 2G /swapfile
+    sudo chmod 600 /swapfile
+    sudo mkswap /swapfile
+    sudo swapon /swapfile
+    echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab > /dev/null
+    echo "  Swap skapad och aktiverad."
+else
+    echo "  Swap-fil finns redan, hoppar över."
+fi
+
+# ── 2. Locale ────────────────────────────────────────────────────────────────
+step "2/7  Konfigurerar locale (en_US.UTF-8)"
+sudo apt-get update -q
+sudo apt-get install -y -q locales
+sudo locale-gen en_US en_US.UTF-8
+sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
+export LANG=en_US.UTF-8
+
+# ── 3. ROS 2 Jazzy ──────────────────────────────────────────────────────────
+step "3/7  Installerar ROS 2 Jazzy"
+sudo apt-get install -y -q software-properties-common curl
+
+if [ ! -f /usr/share/keyrings/ros-archive-keyring.gpg ]; then
+    sudo add-apt-repository universe -y
+    sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+        -o /usr/share/keyrings/ros-archive-keyring.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
+http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo "$UBUNTU_CODENAME") main" \
+        | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
+    sudo apt-get update -q
+fi
+
+sudo apt-get install -y -q \
+    ros-${ROS_DISTRO}-ros-base \
+    python3-colcon-common-extensions
+
+# ── 4. TurtleBot3-beroenden ──────────────────────────────────────────────────
+step "4/7  Installerar TurtleBot3-beroenden"
+sudo apt-get install -y -q \
+    python3-argcomplete \
+    libboost-system-dev \
+    build-essential \
+    libudev-dev \
+    git \
+    ros-${ROS_DISTRO}-hls-lfcd-lds-driver \
+    ros-${ROS_DISTRO}-turtlebot3-msgs \
+    ros-${ROS_DISTRO}-dynamixel-sdk \
+    ros-${ROS_DISTRO}-xacro
+
+# ── 5. Bygg turtlebot3_ws ────────────────────────────────────────────────────
+step "5/7  Klonar och bygger turtlebot3_ws  (detta tar ~20 min)"
+source /opt/ros/${ROS_DISTRO}/setup.bash
+
+mkdir -p "${WORKSPACE}/src"
+cd "${WORKSPACE}/src"
+
+if [ ! -d turtlebot3 ]; then
+    git clone -b ${ROS_DISTRO} https://github.com/ROBOTIS-GIT/turtlebot3.git
+fi
+if [ ! -d ld08_driver ]; then
+    git clone -b ${ROS_DISTRO} https://github.com/ROBOTIS-GIT/ld08_driver.git
+fi
+
+# Ta bort paket som bara behövs på laptop/PC
+cd "${WORKSPACE}/src/turtlebot3"
+rm -rf turtlebot3_cartographer turtlebot3_navigation2
+
+cd "${WORKSPACE}"
+# --parallel-workers 1 förhindrar OOM-krasch på RPi under kompilering
+colcon build --symlink-install --parallel-workers 1
+
+# ── 6. USB-regler för OpenCR ─────────────────────────────────────────────────
+step "6/7  Konfigurerar udev-regler för OpenCR"
+source "${WORKSPACE}/install/setup.bash"
+
+RULES_SRC="$(ros2 pkg prefix turtlebot3_bringup)/share/turtlebot3_bringup/script/99-turtlebot3-cdc.rules"
+if [ -f "$RULES_SRC" ]; then
+    sudo cp "$RULES_SRC" /etc/udev/rules.d/
+    sudo udevadm control --reload-rules
+    sudo udevadm trigger
+else
+    warn "Kunde inte hitta udev-regler på $RULES_SRC – kontrollera bygget."
+fi
+
+# ── 7. Miljövariabler i .bashrc ──────────────────────────────────────────────
+step "7/7  Skriver miljövariabler till ~/.bashrc"
+
+append_if_missing() {
+    grep -qxF "$1" ~/.bashrc || echo "$1" >> ~/.bashrc
+}
+
+append_if_missing "source /opt/ros/${ROS_DISTRO}/setup.bash"
+append_if_missing "source ${WORKSPACE}/install/setup.bash"
+append_if_missing "export ROS_DOMAIN_ID=${DOMAIN_ID}"
+append_if_missing "export TURTLEBOT3_MODEL=${TB3_MODEL}"
+append_if_missing "export LDS_MODEL=${LDS_MODEL}"
+
+# ── Klart ────────────────────────────────────────────────────────────────────
+echo ""
+echo -e "${BOLD}${GREEN}╔══════════════════════════════════════════╗${NC}"
+echo -e "${BOLD}${GREEN}║   INSTALLATION KLAR!                     ║${NC}"
+echo -e "${BOLD}${GREEN}╚══════════════════════════════════════════╝${NC}"
+echo ""
+echo "  ROS 2 Jazzy   ✓"
+echo "  TurtleBot3 ws ✓  ($WORKSPACE)"
+echo "  OpenCR udev   ✓"
+echo "  ROS_DOMAIN_ID = $DOMAIN_ID"
+echo "  LDS_MODEL     = $LDS_MODEL"
+echo ""
+echo "Nästa steg:"
+echo "  1. source ~/.bashrc"
+echo "  2. Anslut OpenCR via USB och starta motorer"
+echo "  3. ros2 launch turtlebot3_bringup robot.launch.py"
+echo ""
+echo "Laptop-kommandon (när bringup körs):"
+echo "  ros2 launch dva272_slam_demo slam_demo.launch.py"
