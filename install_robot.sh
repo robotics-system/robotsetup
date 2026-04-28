@@ -78,9 +78,9 @@ http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo "$UBUNTU_CODENAM
     sudo apt-get update -q
 fi
 
-# Ubuntu 24.04 security-uppdateringar bumpar lib-versioner (.1-suffix) utan att
-# uppdatera matchande -dev-paket. Nedgradera tillfälligt så ROS-installationen
-# kan lösa beroenden, uppgradera sedan tillbaka efteråt.
+# Ubuntu 24.04 security-uppdateringar bumpar lib-versioner (.1-suffix) men
+# -dev-paket kräver exakta versioner. Nedgradera de kända konflikterna en gång
+# och låt dem vara — roboten är på stängt nätverk och behöver inte senaste patch.
 sudo apt-get install -y -q --allow-downgrades \
     liblz4-1=1.9.4-1build1 \
     libzstd1=1.5.5+dfsg2-2build1 \
@@ -90,15 +90,14 @@ sudo apt-get install -y -q \
     ros-${ROS_DISTRO}-ros-base \
     python3-colcon-common-extensions
 
-# Återställ security-versioner
-sudo apt-get dist-upgrade -y -q
-
 # ── 4. TurtleBot3-beroenden ──────────────────────────────────────────────────
 step "4/7  Installerar TurtleBot3-beroenden"
-sudo apt-get install -y -q \
+# Använd gcc/g++/make/cmake direkt — build-essential drar in dpkg-dev
+# som har trasiga beroenden mot bzip2 på det här systemet.
+sudo apt-get install -y -q --allow-downgrades \
     python3-argcomplete \
     libboost-system-dev \
-    build-essential \
+    gcc g++ make cmake \
     libudev-dev \
     git \
     ros-${ROS_DISTRO}-hls-lfcd-lds-driver \
