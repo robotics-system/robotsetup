@@ -78,9 +78,20 @@ http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo "$UBUNTU_CODENAM
     sudo apt-get update -q
 fi
 
+# Ubuntu 24.04 security-uppdateringar bumpar lib-versioner (.1-suffix) utan att
+# uppdatera matchande -dev-paket. Nedgradera tillfälligt så ROS-installationen
+# kan lösa beroenden, uppgradera sedan tillbaka efteråt.
+sudo apt-get install -y -q --allow-downgrades \
+    liblz4-1=1.9.4-1build1 \
+    libzstd1=1.5.5+dfsg2-2build1 \
+    zlib1g=1:1.3.dfsg-3.1ubuntu2
+
 sudo apt-get install -y -q \
     ros-${ROS_DISTRO}-ros-base \
     python3-colcon-common-extensions
+
+# Återställ security-versioner
+sudo apt-get dist-upgrade -y -q
 
 # ── 4. TurtleBot3-beroenden ──────────────────────────────────────────────────
 step "4/7  Installerar TurtleBot3-beroenden"
