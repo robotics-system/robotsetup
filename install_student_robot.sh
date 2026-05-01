@@ -114,6 +114,9 @@ fi
 if [ ! -d ld08_driver ]; then
     git clone -b ${ROS_DISTRO} https://github.com/ROBOTIS-GIT/ld08_driver.git
 fi
+if [ ! -d coin_d4_driver ]; then
+    git clone -b ${ROS_DISTRO} https://github.com/ROBOTIS-GIT/coin_d4_driver.git
+fi
 if [ ! -d hls_lfcd_lds_driver ]; then
     git clone -b ${ROS_DISTRO} https://github.com/ROBOTIS-GIT/hls_lfcd_lds_driver.git
 fi
